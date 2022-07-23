@@ -1,50 +1,63 @@
 import { useState } from "react";
-import { createFFmpeg, fetchFile } from "@ffmpeg/ffmpeg";
+import useFfmpeg from "./useFfmpeg";
+
+// https://github.com/ffmpegwasm/ffmpeg.wasm/issues/263
 
 function App() {
   const [videoSrc, setVideoSrc] = useState("");
-  const [message, setMessage] = useState("Click Start to transcode");
+  const [inputVideoSrc, setInputVideoSrc] = useState("");
+  const [trimmedVideoSrc, setTrimmedVideoSrc] = useState("");
+  const [thumbnailList, setThumbnailList] = useState([]);
+  const { getTrimmedVideo, makeThumbnail } = useFfmpeg();
 
-  const ffmpeg = createFFmpeg({ log: true });
+  const onChangeInput = (e) => {
+    const file = e.target.files[0];
+    const url = URL.createObjectURL(file);
 
-  // 트랜스코딩. 다른 확장자로 변경
-  // const doTranscode = async () => {
-  //   setMessage("Loading ffmpeg-core.js");
-  //   await ffmpeg.load();
-  //   setMessage("Start transcoding");
-  //   ffmpeg.FS("writeFile", "test.mp4", await fetchFile("/sample.mp4"));
+    setInputVideoSrc(url);
+    setVideoSrc(url);
+  };
 
-  //   await ffmpeg.run("-i", "test.mp4", "test.avi");
-  //   setMessage("Complete transcoding");
+  // https://www.codegrepper.com/code-examples/shell/ffmpeg+convert+mp4+to+mp4
+  // codec을 변경하거나
+  // 동영상의 사이즈를 변경하거나
 
-  //   const data = ffmpeg.FS("readFile", "test.avi");
-  //   setVideoSrc(URL.createObjectURL(new Blob([data.buffer], { type: "video/avi" })));
-  // };
+  const handleClickTrimButton = async () => {
+    const trimStartTime = document.getElementsByName("trim-start")[0].value;
+    const trimEndTime = document.getElementsByName("trim-end")[0].value;
+    const objectUrl = await getTrimmedVideo(videoSrc, trimStartTime, trimEndTime);
 
-  // 영상 커팅
-  const trimVideo = async () => {
-    if (!ffmpeg.isLoaded()) {
-      await ffmpeg.load();
-    }
+    setTrimmedVideoSrc(objectUrl);
+  };
 
-    const name = "test.mp4";
-    ffmpeg.FS("writeFile", "test.mp4", await fetchFile("/sample.mp4"));
+  const handleClickThumbnailButton = async () => {
+    const thumbnailList = [];
+    const objectUrl = await makeThumbnail(videoSrc, 4);
 
-    // 0 ~ 10초 trim
-    await ffmpeg.run("-i", name, "-ss", "0", "-to", "10", "-c", "copy", "output.mp4");
+    thumbnailList.push(objectUrl);
 
-    const data = await ffmpeg.FS("readFile", "output.mp4");
-    setVideoSrc(URL.createObjectURL(new Blob([data.buffer], { type: "video/mp4" })));
+    setThumbnailList(thumbnailList);
   };
 
   return (
     <div className="App">
-      <video src={videoSrc} controls width="300px" />
-      <br />
-      {message}
-      <br />
-      <button onClick={trimVideo}>Do Transcode</button>
-      <button onClick={trimVideo}>Trim Video</button>
+      <h2>video input</h2>
+      <input type="file" onChange={onChangeInput} name="video-file" />
+      <h2>input video</h2>
+      <video src={inputVideoSrc} controls width="300px" id="input-video" />
+      <h2>trimmed video</h2>
+      <h3>구간</h3>
+      <input type="number" name="trim-start" placeholder="0" />
+      ~
+      <input type="number" name="trim-end" placeholder="0" />
+      <button onClick={handleClickTrimButton}>비디오 자르기</button>
+      <h3>결과</h3>
+      <video src={trimmedVideoSrc} controls width="300px" id="trimmed-video" />
+      <h2>make thumbnail</h2>
+      <button onClick={handleClickThumbnailButton}>만들기</button>
+      {thumbnailList.map((thumbnailImage) => (
+        <img src={thumbnailImage} width="150px" key={thumbnailImage} />
+      ))}
     </div>
   );
 }
